@@ -7,6 +7,9 @@ add_subdirectory(cc_-sdk/CC_SDK)
 
 add_executable(Drone main.cpp
         src/websocket.cpp
-        include/websocket.h)
+        include/websocket.h
+        src/FrameRoute.cpp
+        include/FrameRoute.h)
+
 target_include_directories(Drone PUBLIC ${CC_API_INC})
 target_link_libraries(Drone PUBLIC CC_API)
