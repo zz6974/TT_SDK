@@ -9,7 +9,14 @@ add_executable(Drone main.cpp
         src/websocket.cpp
         include/websocket.h
         src/FrameRoute.cpp
-        include/FrameRoute.h)
+        include/FrameRoute.h
+        src/Dispose.cpp
+        include/Dispose.h
+        include/sqlite.h
+        src/DataBase.cpp
+        include/DataBase.h)
 
 target_include_directories(Drone PUBLIC ${CC_API_INC})
 target_link_libraries(Drone PUBLIC CC_API)
+# 把工程根目录注入为字符串宏，源码用 PROJECT_ROOT_DIR 拼接数据库路径
+target_compile_definitions(Drone PRIVATE PROJECT_ROOT_DIR="${CMAKE_SOURCE_DIR}")

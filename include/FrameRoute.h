@@ -69,7 +69,7 @@ public:
     [[nodiscard]] size_t TryParse() const{return m_buffer.size();}
     //清除
     void Reset(){m_buffer.clear();}
-    size_t TryParse(uint8_t type ,uint32_t length) {
+    size_t TryParse() {
         size_t count = 0;
         while (true) {
             const int pos = m_buffer.indexOf(CTL::ByteArray({0xCC, 0xDD}));
