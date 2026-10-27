@@ -1,0 +1,43 @@
+//Windows 内置已有
+winget install --id Git.Git -s winget
+
+//Linux
+sudo apt install git
+
+//简单指令
+
+1.配置账号邮箱
+git config --global user.name "你的名字"
+git config --global user.email "你的邮箱@example.com"
+
+2.初始化本地仓库
+git init
+
+3.提交及推送
+# 所有文件加入暂存区
+
+git add .
+# 提交到本地仓库
+
+git commit -m "first commit: 初始化项目"
+# 确认本地分支名
+
+git branch
+#   显示 master → 改成 main：git branch -M main
+#   显示 main   → 跳过
+
+# 关联远程仓库
+git remote add origin 你的仓库的http连接
+
+# 第一次推送（-u 记住追踪关系）
+git push -u origin main
+
+4.后续提交
+git status                  # 1. 看改了哪些文件
+git add .                   # 2. 加入暂存区（或 git add 指定文件）
+git commit -m "feat: 新增图像采集接口"   # 3. 提交
+git pull --rebase           # 4. 推送前先拉远程最新
+git push                    # 5. 推送
+
+//更改远程连接路径
+git remote set-url origin http连接
