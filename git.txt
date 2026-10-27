@@ -41,3 +41,9 @@ git push                    # 5. 推送
 
 //更改远程连接路径
 git remote set-url origin http连接
+
+# 1. 删掉本地 Git 记录（代码文件不动）
+Remove-Item -Recurse -Force .git
+
+# 2. 重新初始化，指定主分支为 main
+git init -b main

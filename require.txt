@@ -1,0 +1,897 @@
+企业级四轴无人机驱动 SDK 设计文档
+
+1. 文档概述
+
+当前仓库 zz6974/TT_SDK 仍处于原型阶段，核心优势已经初步形成：
+- 具备底层帧协议处理能力（FrameRoute）
+- 具备消息分发/业务绑定能力（Dispose）
+- 具备数据库持久化思路（DataBase）
+- 具备 WebSocket 网络通信基础（websocket）
+- 具备 CMake 构建基础
+
+但从企业级 SDK 角度看，它还缺少：
+- 稳定的对外 API
+- 统一的数据模型
+- 驱动层和业务层分离
+- 可靠性和安全设计
+- 文档、示例和测试体系
+- 多平台和多传输能力
+
+本设计文档的目标，是把该仓库从“实验型无人机通信工程”升级为“企业级四轴无人机驱动 SDK”。
+
+2. 设计目标
+
+2.1 业务目标
+- 为四轴无人机提供统一的驱动接口
+- 统一管理底层通信、控制指令、遥测数据、故障处理
+- 支持多种设备接入方式：WebSocket、串口、UDP、CAN、USB
+- 支持飞行控制、状态监控、参数管理、数据持久化
+
+2.2 技术目标
+- 提供稳定的 C++ SDK API
+- 抽离协议层、驱动层、服务层和应用层
+- 支持 Linux/Windows/ARM 等多平台构建
+- 支持断线重连、心跳、超时保护、低电量保护
+- 支持日志、诊断和配置管理
+
+2.3 非目标
+- 不做完整无人机飞控算法库
+- 不做高层开发者应用界面
+- 不做商业遥控软件界面
+- 不直接依赖特定运输层（WebSocket 仅作为一种传输实现）
+
+3. 当前仓库现状分析
+
+从现有结构可以看出，仓库中已经存在以下基础能力：
+
+- FrameRoute.h
+- 定义了帧头、帧类型（VIDEO / SENSOR / CONTROL）
+- 提供 PackFrame 和 FrameParser
+- 这代表 repo 已具备底层数据帧抽象，可成为协议层核心
+
+- Dispose.h / Dispose.cpp
+- 通过 InitBind 把消息处理函数绑定到名称映射
+- 例如 UserVerify、GPSLocation、IMUData、BaroData、BatteryData、MotorStatus、Accelerometer
+- 可演化为 CommandHandler / TelemetryHandler
+
+- DataBase.h / DataBase.cpp
+- 使用 SQLite 持久化
+- 具备缓存和实体管理思路
+- 适合做参数存储、日志缓存、设备状态存档
+
+- websocket.cpp
+- 提供 WebSocket 服务端和客户端基本能力
+- 可作为 transport 实现的一部分
+
+结论：
+- 这个仓库已经具备“底层能力雏形”
+- 但尚未具备企业级 SDK 的 API 边界和工程结构
+
+4. 架构设计
+
+4.1 分层架构
+
+整个 SDK 推荐采用 6 层设计：
+
+- 1. Transport Layer
+- 负责底层连接建立与维护
+- 实现：WebSocketTransport、SerialTransport、UdpTransport、CanTransport
+
+- 2. Protocol Layer
+- 负责解析帧、组帧、校验和、协议版本识别
+- 当前 FrameRoute 可作为该层核心
+
+- 3. Driver Layer
+- 负责各种硬件/设备访问
+- 例如：IMUDriver、GPSDriver、MotorDriver、BatteryDriver
+
+- 4. Domain Model Layer
+- 定义统一的数据结构
+- 例如：DroneStatus、IMUData、GPSData、ControlCommand
+
+- 5. Service Layer
+- 提供高层飞行控制与状态管理
+- 例如：Arm()、TakeOff()、Land()、MoveTo()、SetMode()
+
+- 6. SDK API Layer
+- 面向最终开发者的稳定 API
+- 只暴露标准能力，不暴露协议细节
+
+4.2 目标目录结构
+
+建议将仓库改造成如下结构：
+
+- include/
+- ttsdk/
+- core/
+- DroneSDK.h
+- DroneStatus.h
+- ControlCommand.h
+- EventTypes.h
+- protocol/
+- FrameRoute.h
+- MessageTypes.h
+- ProtocolVersion.h
+- transport/
+- ITransport.h
+- WebSocketTransport.h
+- SerialTransport.h
+- drivers/
+- IDroneDriver.h
+- IMUDriver.h
+- GPSDriver.h
+- BatteryDriver.h
+- MotorDriver.h
+- services/
+- FlightController.h
+- TelemetryService.h
+- HealthMonitor.h
+- storage/
+- DataBase.h
+- ConfigManager.h
+- LogStore.h
+
+- src/
+- protocol/
+- FrameRoute.cpp
+- MessageCodec.cpp
+- transport/
+- WebSocketTransport.cpp
+- SerialTransport.cpp
+- drivers/
+- IMUDriver.cpp
+- GPSDriver.cpp
+- BatteryDriver.cpp
+- services/
+- FlightController.cpp
+- TelemetryService.cpp
+- HealthMonitor.cpp
+- storage/
+- DataBase.cpp
+- ConfigManager.cpp
+
+- examples/
+- basic_connect
+- telemetry_stream
+- controlled_flight
+- fault_monitor
+
+- tests/
+- protocol_tests
+- telemetry_tests
+- driver_tests
+
+- docs/
+- architecture.md
+- api.md
+- safety.md
+- quickstart.md
+
+5. 关键设计原则
+
+5.1 分层解耦
+- 协议层只关心“字节流和帧”
+- 驱动层只关心“设备访问”
+- 服务层只关心“业务动作”
+- API 层只关心“Unified interface”
+
+5.2 稳定 API
+- 不对用户暴露 `CTL::ByteArray` 之类的底层对象
+- 对用户只提供结构化 API，让 SDK 保持向后兼容
+
+5.3 可插拔 Transport
+- 不把 WebSocket 当作唯一通信技术
+- 抽象出统一 `ITransport` 接口
+
+5.4 安全优先
+- 所有控制命令都要做合法性验证
+- 低电量、失联、过热、失衡必须触发安全态
+
+6. 核心接口设计
+
+6.1 统一传输接口
+
+ITransport
+- Connect()
+- Disconnect()
+- IsConnected()
+- Send()
+- Receive()
+- SetOnDataCallback()
+- SetOnErrorCallback()
+
+6.2 飞行控制接口
+
+IFlightController
+- Connect()
+- Disconnect()
+- Arm()
+- Disarm()
+- TakeOff()
+- Land()
+- Hover()
+- SetMode()
+- SetThrottle()
+- MoveTo()
+- GetStatus()
+
+6.3 遥测接口
+
+ITelemetrySink
+- OnIMU()
+- OnGPS()
+- OnBattery()
+- OnMotorStatus()
+- OnBarometer()
+- OnFault()
+
+6.4 设备状态对象
+
+DroneStatus
+- connected
+- armed
+- flightMode
+- batteryLevel
+- gpsValid
+- signalQuality
+- healthState
+- errorCode
+
+6.5 关键数据模型
+
+IMUData
+- timestamp
+- accelX
+- accelY
+- accelZ
+- gyroX
+- gyroY
+- gyroZ
+- temperature
+
+GPSData
+- timestamp
+- latitude
+- longitude
+- altitude
+- speed
+- satellites
+
+BatteryInfo
+- timestamp
+- voltage
+- current
+- remainingPercent
+- temperature
+
+MotorStatus
+- motorId
+- rpm
+- temperature
+- status
+
+ControlCommand
+- type
+- targetAltitude
+- targetYaw
+- targetX
+- targetY
+- speed
+- timestamp
+- checksum
+
+7. 协议设计
+
+7.1 当前协议的价值
+当前仓库中的 FrameRoute 已展示了以下能力：
+- 定义帧头
+- 定义 payload 长度
+- 允许按类型分帧
+- 可用于视频、传感器、控制消息
+
+这非常适合作为底层协议入口。
+
+7.2 协议结构建议
+建议将 FrameHeader 扩展为更完整的协议版本化结构：
+- magic
+- version
+- type
+- sequence
+- timestamp
+- payloadLength
+- checksum
+
+消息类型由以下部分构成：
+- HEARTBEAT
+- AUTH
+- TELEMETRY
+- CONTROL
+- PARAM_SET
+- PARAM_GET
+- EVENT
+- LOG
+- FAULT
+
+7.3 协议原则
+- 统一消息头
+- 强类型消息体
+- 版本号控制
+- 校验和/CRC
+- 允许扩展字段
+
+8. 安全与可靠性设计
+
+8.1 安全要求
+- 所有控制命令需要鉴权
+- 设备必须具备连接 token 或密钥
+- 控制命令必须校验合法性
+- 禁止未授权控制
+
+8.2 可靠性要求
+- 心跳检测
+- 超时控制
+- 自动重连
+- 低电量自动降落
+- 丢包处理
+- 协议错误恢复
+- 设备超时保护
+
+8.3 提升机制
+- watchdog
+- 状态机模式
+- command queue
+- command timeout and rollback
+- fail-safe mode
+
+9. 诊断与日志设计
+
+SDK 应支持以下诊断能力：
+- 通信日志
+- 协议日志
+- 设备状态日志
+- 事件日志
+- 告警日志
+- 参数变更日志
+
+建议保留两类：
+- Debug 日志：开发调试
+- Audit 日志：企业级审计、故障追踪
+
+10. 数据持久化设计
+
+DataBase 层不能仅作为 demo 存储，而应成为企业级配置与日志管理层。
+
+建议存储内容：
+- 飞行参数
+- 校准参数
+- 设备配置
+- 历史遥测
+- 故障记录
+- 运行事件
+- 飞行日志
+
+建议使用：
+- SQLite：轻量、高便携
+- 可扩展为 MySQL/PostgreSQL：用于企业端统一管理
+
+11. 后续演进路线
+
+11.1 第一阶段：SDK 化
+- 抽离协议层
+- 统一数据结构
+- 明确传输抽象
+- 推出稳定 API
+- 完成示例工程
+
+11.2 第二阶段：功能闭环
+- 飞行控制接口完善
+- 遥测订阅系统
+- 故障管理
+- 参数管理
+- 低电量保护
+
+11.3 第三阶段：企业化
+- 多平台构建
+- CI/CD
+- API 文档生成
+- 合规审计
+- 稳定版发布
+- 架构说明和版本记录
+
+12. 版本管理
+
+建议采用语义化版本：
+- MAJOR：破坏性 API 改动
+- MINOR：新增功能但兼容
+- PATCH：修复 bug
+
+建议维护：
+- SDK version
+- Protocol version
+- Device firmware compatibility matrix
+
+13. 风险点与应对
+
+风险 1：底层协议不稳定
+- 对策：协议版本号控制，严格消息校验
+
+风险 2：控制命令安全问题
+- 对策：鉴权、命令合法性检查、failsafe
+
+风险 3：连接中断导致飞行风险
+- 对策：watchdog、自动切回安全高度/降落
+
+风险 4：API 设计不稳定
+- 对策：先设计稳定接口，再实现底层
+
+风险 5：工程难以维护
+- 对策：按层分包、单元测试、示例工程
+
+14. 最终推荐方案
+
+如果将当前仓库升级为企业级四轴无人机驱动 SDK，最合理的路径是：
+
+- 保留 FrameRoute 作为底层协议引擎
+- 把 Dispose 改造成 Telemetry & Command Dispatcher
+- 将 WebSocket 从核心逻辑剥离成 transport 实现
+- 把 DataBase 改造成 configuration + log + diagnostics layer
+- 定义统一 DroneStatus / IMUData / GPSData / ControlCommand / FaultEvent
+- 对外提供 IFlightController、ITransport、ITelemetrySink 等稳定 API
+- 完成 examples + docs + tests + version management
+
+15. 一句话总结
+
+当前 TT_SDK 不是“企业级SDK”，但它具备成为企业级四轴无人机驱动 SDK 的基础骨架：协议层、通信层、状态层和数据库层已具雏形。最关键的下一步不是堆功能，而是做“稳定 API + 分层架构 + 安全可靠性 + 工程化”。
+
+如果你愿意，我下一步可以继续直接帮你输出：
+- 版本 A：完整 SDK 接口草案代码
+- 版本 B：按这个设计文档，生成详细的项目目录和模块定义
+- 版本 C：直接给你可执行的 CMake + 类结构骨架文件内容企业级四轴无人机驱动 SDK 设计文档
+
+     1. 文档概述
+
+     当前仓库 zz6974/TT_SDK 仍处于原型阶段，核心优势已经初步形成：
+     - 具备底层帧协议处理能力（FrameRoute）
+     - 具备消息分发/业务绑定能力（Dispose）
+     - 具备数据库持久化思路（DataBase）
+     - 具备 WebSocket 网络通信基础（websocket）
+     - 具备 CMake 构建基础
+
+     但从企业级 SDK 角度看，它还缺少：
+     - 稳定的对外 API
+     - 统一的数据模型
+     - 驱动层和业务层分离
+     - 可靠性和安全设计
+     - 文档、示例和测试体系
+     - 多平台和多传输能力
+
+     本设计文档的目标，是把该仓库从“实验型无人机通信工程”升级为“企业级四轴无人机驱动 SDK”。
+
+     2. 设计目标
+
+     2.1 业务目标
+     - 为四轴无人机提供统一的驱动接口
+     - 统一管理底层通信、控制指令、遥测数据、故障处理
+     - 支持多种设备接入方式：WebSocket、串口、UDP、CAN、USB
+     - 支持飞行控制、状态监控、参数管理、数据持久化
+
+     2.2 技术目标
+     - 提供稳定的 C++ SDK API
+     - 抽离协议层、驱动层、服务层和应用层
+     - 支持 Linux/Windows/ARM 等多平台构建
+     - 支持断线重连、心跳、超时保护、低电量保护
+     - 支持日志、诊断和配置管理
+
+     2.3 非目标
+     - 不做完整无人机飞控算法库
+     - 不做高层开发者应用界面
+     - 不做商业遥控软件界面
+     - 不直接依赖特定运输层（WebSocket 仅作为一种传输实现）
+
+     3. 当前仓库现状分析
+
+     从现有结构可以看出，仓库中已经存在以下基础能力：
+
+     - FrameRoute.h
+       - 定义了帧头、帧类型（VIDEO / SENSOR / CONTROL）
+       - 提供 PackFrame 和 FrameParser
+       - 这代表 repo 已具备底层数据帧抽象，可成为协议层核心
+
+     - Dispose.h / Dispose.cpp
+       - 通过 InitBind 把消息处理函数绑定到名称映射
+       - 例如 UserVerify、GPSLocation、IMUData、BaroData、BatteryData、MotorStatus、Accelerometer
+       - 可演化为 CommandHandler / TelemetryHandler
+
+     - DataBase.h / DataBase.cpp
+       - 使用 SQLite 持久化
+       - 具备缓存和实体管理思路
+       - 适合做参数存储、日志缓存、设备状态存档
+
+     - websocket.cpp
+       - 提供 WebSocket 服务端和客户端基本能力
+       - 可作为 transport 实现的一部分
+
+     结论：
+     - 这个仓库已经具备“底层能力雏形”
+     - 但尚未具备企业级 SDK 的 API 边界和工程结构
+
+     4. 架构设计
+
+     4.1 分层架构
+
+     整个 SDK 推荐采用 6 层设计：
+
+     - 1. Transport Layer
+       - 负责底层连接建立与维护
+       - 实现：WebSocketTransport、SerialTransport、UdpTransport、CanTransport
+
+     - 2. Protocol Layer
+       - 负责解析帧、组帧、校验和、协议版本识别
+       - 当前 FrameRoute 可作为该层核心
+
+     - 3. Driver Layer
+       - 负责各种硬件/设备访问
+       - 例如：IMUDriver、GPSDriver、MotorDriver、BatteryDriver
+
+     - 4. Domain Model Layer
+       - 定义统一的数据结构
+       - 例如：DroneStatus、IMUData、GPSData、ControlCommand
+
+     - 5. Service Layer
+       - 提供高层飞行控制与状态管理
+       - 例如：Arm()、TakeOff()、Land()、MoveTo()、SetMode()
+
+     - 6. SDK API Layer
+       - 面向最终开发者的稳定 API
+       - 只暴露标准能力，不暴露协议细节
+
+     4.2 目标目录结构
+
+     建议将仓库改造成如下结构：
+
+     - include/
+       - ttsdk/
+         - core/
+           - DroneSDK.h
+           - DroneStatus.h
+           - ControlCommand.h
+           - EventTypes.h
+         - protocol/
+           - FrameRoute.h
+           - MessageTypes.h
+           - ProtocolVersion.h
+         - transport/
+           - ITransport.h
+           - WebSocketTransport.h
+           - SerialTransport.h
+         - drivers/
+           - IDroneDriver.h
+           - IMUDriver.h
+           - GPSDriver.h
+           - BatteryDriver.h
+           - MotorDriver.h
+         - services/
+           - FlightController.h
+           - TelemetryService.h
+           - HealthMonitor.h
+         - storage/
+           - DataBase.h
+           - ConfigManager.h
+           - LogStore.h
+
+     - src/
+       - protocol/
+         - FrameRoute.cpp
+         - MessageCodec.cpp
+       - transport/
+         - WebSocketTransport.cpp
+         - SerialTransport.cpp
+       - drivers/
+         - IMUDriver.cpp
+         - GPSDriver.cpp
+         - BatteryDriver.cpp
+       - services/
+         - FlightController.cpp
+         - TelemetryService.cpp
+         - HealthMonitor.cpp
+       - storage/
+         - DataBase.cpp
+         - ConfigManager.cpp
+
+     - examples/
+       - basic_connect
+       - telemetry_stream
+       - controlled_flight
+       - fault_monitor
+
+     - tests/
+       - protocol_tests
+       - telemetry_tests
+       - driver_tests
+
+     - docs/
+       - architecture.md
+       - api.md
+       - safety.md
+       - quickstart.md
+
+     5. 关键设计原则
+
+     5.1 分层解耦
+     - 协议层只关心“字节流和帧”
+     - 驱动层只关心“设备访问”
+     - 服务层只关心“业务动作”
+     - API 层只关心“Unified interface”
+
+     5.2 稳定 API
+     - 不对用户暴露 `CTL::ByteArray` 之类的底层对象
+     - 对用户只提供结构化 API，让 SDK 保持向后兼容
+
+     5.3 可插拔 Transport
+     - 不把 WebSocket 当作唯一通信技术
+     - 抽象出统一 `ITransport` 接口
+
+     5.4 安全优先
+     - 所有控制命令都要做合法性验证
+     - 低电量、失联、过热、失衡必须触发安全态
+
+     6. 核心接口设计
+
+     6.1 统一传输接口
+
+     ITransport
+     - Connect()
+     - Disconnect()
+     - IsConnected()
+     - Send()
+     - Receive()
+     - SetOnDataCallback()
+     - SetOnErrorCallback()
+
+     6.2 飞行控制接口
+
+     IFlightController
+     - Connect()
+     - Disconnect()
+     - Arm()
+     - Disarm()
+     - TakeOff()
+     - Land()
+     - Hover()
+     - SetMode()
+     - SetThrottle()
+     - MoveTo()
+     - GetStatus()
+
+     6.3 遥测接口
+
+     ITelemetrySink
+     - OnIMU()
+     - OnGPS()
+     - OnBattery()
+     - OnMotorStatus()
+     - OnBarometer()
+     - OnFault()
+
+     6.4 设备状态对象
+
+     DroneStatus
+     - connected
+     - armed
+     - flightMode
+     - batteryLevel
+     - gpsValid
+     - signalQuality
+     - healthState
+     - errorCode
+
+     6.5 关键数据模型
+
+     IMUData
+     - timestamp
+     - accelX
+     - accelY
+     - accelZ
+     - gyroX
+     - gyroY
+     - gyroZ
+     - temperature
+
+     GPSData
+     - timestamp
+     - latitude
+     - longitude
+     - altitude
+     - speed
+     - satellites
+
+     BatteryInfo
+     - timestamp
+     - voltage
+     - current
+     - remainingPercent
+     - temperature
+
+     MotorStatus
+     - motorId
+     - rpm
+     - temperature
+     - status
+
+     ControlCommand
+     - type
+     - targetAltitude
+     - targetYaw
+     - targetX
+     - targetY
+     - speed
+     - timestamp
+     - checksum
+
+     7. 协议设计
+
+     7.1 当前协议的价值
+     当前仓库中的 FrameRoute 已展示了以下能力：
+     - 定义帧头
+     - 定义 payload 长度
+     - 允许按类型分帧
+     - 可用于视频、传感器、控制消息
+
+     这非常适合作为底层协议入口。
+
+     7.2 协议结构建议
+     建议将 FrameHeader 扩展为更完整的协议版本化结构：
+     - magic
+     - version
+     - type
+     - sequence
+     - timestamp
+     - payloadLength
+     - checksum
+
+     消息类型由以下部分构成：
+     - HEARTBEAT
+     - AUTH
+     - TELEMETRY
+     - CONTROL
+     - PARAM_SET
+     - PARAM_GET
+     - EVENT
+     - LOG
+     - FAULT
+
+     7.3 协议原则
+     - 统一消息头
+     - 强类型消息体
+     - 版本号控制
+     - 校验和/CRC
+     - 允许扩展字段
+
+     8. 安全与可靠性设计
+
+     8.1 安全要求
+     - 所有控制命令需要鉴权
+     - 设备必须具备连接 token 或密钥
+     - 控制命令必须校验合法性
+     - 禁止未授权控制
+
+     8.2 可靠性要求
+     - 心跳检测
+     - 超时控制
+     - 自动重连
+     - 低电量自动降落
+     - 丢包处理
+     - 协议错误恢复
+     - 设备超时保护
+
+     8.3 提升机制
+     - watchdog
+     - 状态机模式
+     - command queue
+     - command timeout and rollback
+     - fail-safe mode
+
+     9. 诊断与日志设计
+
+     SDK 应支持以下诊断能力：
+     - 通信日志
+     - 协议日志
+     - 设备状态日志
+     - 事件日志
+     - 告警日志
+     - 参数变更日志
+
+     建议保留两类：
+     - Debug 日志：开发调试
+     - Audit 日志：企业级审计、故障追踪
+
+     10. 数据持久化设计
+
+     DataBase 层不能仅作为 demo 存储，而应成为企业级配置与日志管理层。
+
+     建议存储内容：
+     - 飞行参数
+     - 校准参数
+     - 设备配置
+     - 历史遥测
+     - 故障记录
+     - 运行事件
+     - 飞行日志
+
+     建议使用：
+     - SQLite：轻量、高便携
+     - 可扩展为 MySQL/PostgreSQL：用于企业端统一管理
+
+     11. 后续演进路线
+
+     11.1 第一阶段：SDK 化
+     - 抽离协议层
+     - 统一数据结构
+     - 明确传输抽象
+     - 推出稳定 API
+     - 完成示例工程
+
+     11.2 第二阶段：功能闭环
+     - 飞行控制接口完善
+     - 遥测订阅系统
+     - 故障管理
+     - 参数管理
+     - 低电量保护
+
+     11.3 第三阶段：企业化
+     - 多平台构建
+     - CI/CD
+     - API 文档生成
+     - 合规审计
+     - 稳定版发布
+     - 架构说明和版本记录
+
+     12. 版本管理
+
+     建议采用语义化版本：
+     - MAJOR：破坏性 API 改动
+     - MINOR：新增功能但兼容
+     - PATCH：修复 bug
+
+     建议维护：
+     - SDK version
+     - Protocol version
+     - Device firmware compatibility matrix
+
+     13. 风险点与应对
+
+     风险 1：底层协议不稳定
+     - 对策：协议版本号控制，严格消息校验
+
+     风险 2：控制命令安全问题
+     - 对策：鉴权、命令合法性检查、failsafe
+
+     风险 3：连接中断导致飞行风险
+     - 对策：watchdog、自动切回安全高度/降落
+
+     风险 4：API 设计不稳定
+     - 对策：先设计稳定接口，再实现底层
+
+     风险 5：工程难以维护
+     - 对策：按层分包、单元测试、示例工程
+
+     14. 最终推荐方案
+
+     如果将当前仓库升级为企业级四轴无人机驱动 SDK，最合理的路径是：
+
+     - 保留 FrameRoute 作为底层协议引擎
+     - 把 Dispose 改造成 Telemetry & Command Dispatcher
+     - 将 WebSocket 从核心逻辑剥离成 transport 实现
+     - 把 DataBase 改造成 configuration + log + diagnostics layer
+     - 定义统一 DroneStatus / IMUData / GPSData / ControlCommand / FaultEvent
+     - 对外提供 IFlightController、ITransport、ITelemetrySink 等稳定 API
+     - 完成 examples + docs + tests + version management
+
+     15. 一句话总结
+
+     当前 TT_SDK 不是“企业级SDK”，但它具备成为企业级四轴无人机驱动 SDK 的基础骨架：协议层、通信层、状态层和数据库层已具雏形。最关键的下一步不是堆功能，而是做“稳定 API + 分层架构 + 安全可靠性 + 工程化”。
+
+     如果你愿意，我下一步可以继续直接帮你输出：
+     - 版本 A：完整 SDK 接口草案代码
+     - 版本 B：按这个设计文档，生成详细的项目目录和模块定义
+     - 版本 C：直接给你可执行的 CMake + 类结构骨架文件内容
