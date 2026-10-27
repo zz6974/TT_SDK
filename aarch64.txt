@@ -1,0 +1,23 @@
+//安装aarch64 交叉编译的工具链
+sudo apt install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+
+//安装aarch32 交叉编译的工具链
+sudo apt install -y gcc-arm-linux-gnueabihf g++-arm-linux-gnueabihf
+
+//risc-v 64位
+sudo apt install -y gcc-riscv64-linux-gnu g++-riscv64-linux-gnu
+
+//验证指令
+# aarch64
+aarch64-linux-gnu-gcc --version
+aarch64-linux-gnu-g++ --version
+
+# armhf (注意命令可能带 hf 后缀，取决于发行版)
+arm-linux-gnueabihf-gcc --version   # Debian/Ubuntu
+arm-linux-gnueabihf-g++ --version   # Debian/Ubuntu
+arm-linux-gnu-gcc --version         # RHEL/Fedora 系
+arm-linux-gnu-g++ --version         # RHEL/Fedora 系
+
+# riscv64
+riscv64-linux-gnu-gcc --version
+riscv64-linux-gnu-g++ --version

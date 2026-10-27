@@ -23,7 +23,7 @@ int Dispose::UserVerify(CTL::ByteArray &data) {
         return -1;
     }
     std::memcpy(&user.ID, data.buffer() + ret, sizeof(user));
-    // 查询已连接的 User.db（表已存在则 createTable 只做结构同步，不重建、不清数据）
+    // 查询已连接的 User.db（表已存在则 createTable 只做结构同步，不重建、不清数据）    2
     User *user_t = User::Get(user.ID);
     if (user_t == nullptr) {
         CTL::System::Println("ID:{} , 用户不存在", user.ID);
@@ -38,20 +38,26 @@ int Dispose::UserVerify(CTL::ByteArray &data) {
 }
 
 void Dispose::GPSLocation(CTL::ByteArray &data) {
+
 }
 
 void Dispose::IMUData(CTL::ByteArray &data) {
+
 }
 
 void Dispose::BaroData(CTL::ByteArray &data) {
+
 }
 
 void Dispose::BatteryData(CTL::ByteArray &data) {
+
 }
 
 void Dispose::MotorStatus(CTL::ByteArray &data) {
+
 }
 
 void Dispose::Accelerometer(CTL::ByteArray &data) {
+
 }
 
