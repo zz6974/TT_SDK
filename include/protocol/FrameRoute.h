@@ -66,7 +66,7 @@ public:
     }
 
     //缓冲区剩余未解析的字节
-    [[nodiscard]] size_t TryParse() const{return m_buffer.size();}
+    [[nodiscard]] size_t Remain() const{return m_buffer.size();}
     //清除
     void Reset(){m_buffer.clear();}
     size_t TryParse() {
@@ -76,8 +76,13 @@ public:
             if (pos < 0) {
                 return count;
             }
-            if (pos >= 0) {
-                if (m_buffer.size() > 1) m_buffer.poll(0 ,m_buffer.size() - 1);
+            // 丢弃帧头之前的垃圾字节，从帧头开始对齐
+            if (pos > 0) {
+                m_buffer.poll(0, pos);
+            }
+            // 帧头尚未完整到达（半包），等待下一次 Append
+            if (m_buffer.size() < sizeof(FrameHeader)) {
+                return count;
             }
 
             FrameHeader hdr{};

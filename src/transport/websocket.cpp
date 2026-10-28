@@ -1,4 +1,4 @@
-#include "../include/websocket.h"
+#include "transport/websocket.h"
 #include "CCWebSocket.h"
 
 void websocket_server::OnOpen(CTL::WebClient &client) {
@@ -31,8 +31,13 @@ void websocket_server::OnMessage(CTL::WebClient &client) {
         }
     }else if (packet.get_opcode() == WebSocketPacket::WSOpcode_Binary) {
         CTL::System::Println("OnMessage ID:{} {}", client.GetID(), "Binary Message");
-        const auto binary = client.GetBuffer();
-        client.SendBinary(binary);
+        CTL::ByteArray binary = client.GetBuffer();
+        //二进制流量交给上层订阅者处理，未订阅则回显保持兼容
+        if (onBinary_) {
+            onBinary_(binary);
+        } else {
+            client.SendBinary(binary);
+        }
     }
 }
 
@@ -53,13 +58,14 @@ void websocket_server::OnPong(CTL::WebClient &client) {
     CTL::System::Println("OnPong ID:{}" , client.GetID());
 }
 
-int websocket_server::Server_Bind_Demo(std::string ip, int port) {
+//绑定监听：Init + InitBind，不阻塞
+int websocket_server::Bind(std::string ip, int port) {
     if (!server.Init(ip, port)) {
         CTL::System::Println("[Server] Init failed");
         return -1;
     }
     CTL::WSBind bind;
-    bind.URL = "ws";
+    bind.URL = "/ws";
     bind.OnCloseFun = [this](CTL::WebClient& client) { OnClose(client); };
     bind.OnErrorFun = [this](CTL::WebClient& client) { OnError(client); };
     bind.OnMessageFun = [this](CTL::WebClient& client) { OnMessage(client); };
@@ -67,7 +73,20 @@ int websocket_server::Server_Bind_Demo(std::string ip, int port) {
     bind.OnPingFun = [this](CTL::WebClient& client) { OnPing(client); };
     bind.OnPongFun = [this](CTL::WebClient& client) { OnPong(client); };
     server.InitBind(bind);
+    return 0;
+}
+
+//启动事件循环（阻塞）
+int websocket_server::Run() {
     return server.Running();
+}
+
+//兼容旧接口：绑定 + 立即阻塞运行
+int websocket_server::Server_Bind_Demo(std::string ip, int port) {
+    if (Bind(ip, port) != 0) {
+        return -1;
+    }
+    return Run();
 }
 
 void websocket_client::ClientOnOpen(CTL::WebSocketInfo &client) {
@@ -105,6 +124,5 @@ void websocket_client::ClientOnPing(CTL::WebSocketInfo &client) {
 void websocket_client::ClientOnPong(CTL::WebSocketInfo &client) {
     CTL::System::Println("ClientOnPong ID:{}" , client.GetID());
 }
-
 
 
