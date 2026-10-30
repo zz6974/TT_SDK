@@ -1,0 +1,23 @@
+# aarch64-linux-gnu-toolchain.cmake
+# -DCMAKE_TOOLCHAIN_FILE=/home/qing/CPP_Project/TankClientA/x86-toolchain.cmake
+# cmake -B build -DCMAKE_TOOLCHAIN_FILE=/path/to/aarch64-toolchain.cmake
+set(CMAKE_SYSTEM_NAME Linux)
+set(CMAKE_SYSTEM_PROCESSOR x86/x86_64)
+
+# 指定交叉编译器
+set(CMAKE_C_COMPILER "clang")
+set(CMAKE_CXX_COMPILER "clang++")
+
+# 设置目标环境根路径
+#set(CMAKE_FIND_ROOT_PATH "D:/ArmGCC/GCC_11.2_2022_02")
+
+# 搜索模式设置
+set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
+set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
+set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
+set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE ONLY)
+
+# 清除可能导致冲突的链接器标志
+set(CMAKE_EXE_LINKER_FLAGS "" CACHE STRING "" FORCE)
+set(CMAKE_SHARED_LINKER_FLAGS "" CACHE STRING "" FORCE)
+set(CMAKE_MODULE_LINKER_FLAGS "" CACHE STRING "" FORCE)

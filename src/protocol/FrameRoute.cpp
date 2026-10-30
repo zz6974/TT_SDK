@@ -1,5 +1,4 @@
 #include "protocol/FrameRoute.h"
-
 #include <cstring>
 
 // 组帧：给业务数据套上帧头（发送端）
@@ -41,6 +40,7 @@ void FrameParser::Reset() {
     m_buffer.clear();
 }
 
+//尝试解析帧数据
 size_t FrameParser::TryParse() {
     size_t count = 0;
     while (true) {
